@@ -61,6 +61,7 @@ public class WechatServiceImpl implements WechatService {
 				if (ret == 0) {
 					JSONArray memberList = jsonObject.get("MemberList").asArray();
 					JSONArray contactList = new JSONArray();
+					JSONArray groupList = new JSONArray();
 					
 					if (null != memberList) {
 						for (int i = 0, len = memberList.size(); i < len; i++) {
@@ -75,6 +76,7 @@ public class WechatServiceImpl implements WechatService {
 							}
 							// 群聊
 							if (contact.getString("UserName").indexOf("@@") != -1) {
+								groupList.add(contact);
 								continue;
 							}
 							// 自己
@@ -86,6 +88,7 @@ public class WechatServiceImpl implements WechatService {
 
 						wechatContact.setContactList(contactList);
 						wechatContact.setMemberList(memberList);
+						wechatContact.setGroupList(groupList);
 						
 						this.getGroup(wechatMeta, wechatContact);
 						
@@ -105,6 +108,20 @@ public class WechatServiceImpl implements WechatService {
 
 		JSONObject body = new JSONObject();
 		body.put("BaseRequest", wechatMeta.getBaseRequest());
+		
+		JSONArray groupList = wechatContact.getGroupList();
+		JSONObject group;
+		JSONArray list = new JSONArray();
+		for (int index = 0; index < groupList.size(); index++) {
+			group = groupList.get(index).asJSONObject();
+			String userName = group.get("UserName").asString();
+			JSONObject obj = new JSONObject();
+			obj.put("UserName", userName);
+			obj.put("ChatRoomId", "");
+			list.add(obj);
+		}
+		body.put("Count", groupList.size());
+		body.put("List", list);
 
 		HttpRequest request = HttpRequest.post(url).contentType("application/json;charset=utf-8")
 				.header("Cookie", wechatMeta.getCookie()).send(body.toString());
@@ -125,34 +142,8 @@ public class WechatServiceImpl implements WechatService {
 			if (null != BaseResponse) {
 				int ret = BaseResponse.getInt("Ret", -1);
 				if (ret == 0) {
-					JSONArray memberList = jsonObject.get("MemberList").asArray();
-					JSONArray contactList = new JSONArray();
-					
-					if (null != memberList) {
-						for (int i = 0, len = memberList.size(); i < len; i++) {
-							JSONObject contact = memberList.get(i).asJSONObject();
-							// 公众号/服务号
-							if (contact.getInt("VerifyFlag", 0) == 8) {
-								continue;
-							}
-							// 特殊联系人
-							if (Constant.FILTER_USERS.contains(contact.getString("UserName"))) {
-								continue;
-							}
-							// 群聊
-							if (contact.getString("UserName").indexOf("@@") != -1) {
-								continue;
-							}
-							// 自己
-							if (contact.getString("UserName").equals(wechatMeta.getUser().getString("UserName"))) {
-								continue;
-							}
-							contactList.add(contact);
-						}
-						
-						wechatContact.setContactList(contactList);
-						wechatContact.setMemberList(memberList);
-					}
+					JSONArray memberList = jsonObject.get("ContactList").asArray();
+					wechatContact.setGroupList(memberList);
 				}
 			}
 		} catch (Exception e) {
